@@ -26,4 +26,4 @@ Use the `River` and `Christina` configurations included in this artifact reposit
     - CPU pool sizes for housekeeping and RT
     - amount of 1 GiB hugepages.
 - `christina_single_vm_preempt_rt.nix`
-  - Unused configuration, equivalent to single VM, however enables a `PREEMPT_RT` kernel
+  - Unused configuration, equivalent to single VM, however enables a `PREEMPT_RT` kernel. Potentially useful for further investigation.

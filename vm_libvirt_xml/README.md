@@ -6,7 +6,7 @@ Libvirt XML configuration files for network (used in multi-VM) and both 1vCPU an
 
 **For single-VM and multi-VM:**
 
-1. For initial provisioning boot, create a `cloud-init disk image`, e.g. from the [provided vm_cloud_init yaml files in this repository](https://todo.add.url) and uncomment the disk device.
+1. For initial provisioning boot, create a `cloud-init disk image`, e.g. from the provided YAML files in this repository ([`/vm_cloud_init/`](/vm_cloud_init/)), and uncomment the disk device.
 
 2. Replace the template path of the VM image to the actual `qcow2` VM image.
 

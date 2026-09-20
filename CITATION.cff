@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+
+message: >
+  If you use these artifacts in academic work, please cite the associated Bachelor's Thesis as the primary reference. The repository may additionally be cited when referring specifically to the source code or configuration artifacts.
+
+title: "vpac-thesis-artifacts"
+
+type: software
+
+authors:
+  - family-names: "Simoniants"
+    given-names: "Leon"
+
+repository-code: "https://github.com/leonsmnts/vpac-thesis-artifacts/"
+
+license: MIT
+
+preferred-citation:
+  type: thesis
+  authors:
+    - family-names: "Simoniants"
+      given-names: "Leon"
+  title: "Scheduling for Deterministic Virtualization of Virtualized Protection and Control Workloads on COTS Hardware"
+  thesis-type: "Bachelor's Thesis"
+  institution:
+    name: "Technical University of Munich (TUM)"
+  year: 2026
+#  url: TODO: Add URL when available
