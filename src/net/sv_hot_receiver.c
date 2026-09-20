@@ -28,6 +28,7 @@
 typedef struct {
     int sock;
     int expected_packets;
+    int num_vms;
     const char *csv_file;
 
     uint64_t *send_ts_ns;
@@ -40,19 +41,25 @@ typedef struct {
 static int
 init_receiver(int argc, char *argv[], receiver_data_t *data)
 {
-    if (argc < 3 || argc > 4) {
-        printf("Usage: %s <interface> <expected_packets> [output_csv]\n", argv[0]);
-        printf("Example: %s eth0 1000\n", argv[0]);
-        printf("Example: %s eth0 1000 hot_results.csv\n", argv[0]);
+    if (argc < 4 || argc > 5) {
+        printf("Usage: %s <interface> <expected_packets> <num_vms> [output_csv]\n", argv[0]);
+        printf("Example: %s eth0 1000 2\n", argv[0]);
+        printf("Example: %s eth0 1000 2 hot_results.csv\n", argv[0]);
         return EXIT_FAILURE;
     }
 
     const char *interface = argv[1];
     data->expected_packets = atoi(argv[2]);
-    data->csv_file = (argc == 4) ? argv[3] : "latencies.csv";
+    data->num_vms = atoi(argv[3]);
+    data->csv_file = (argc == 5) ? argv[4] : "latencies.csv";
 
     if (data->expected_packets <= 0) {
         fprintf(stderr, "expected_packets must be > 0\n");
+        return EXIT_FAILURE;
+    }
+    
+    if (data->num_vms <= 0) {
+        fprintf(stderr, "num_vms must be > 0\n");
         return EXIT_FAILURE;
     }
 
@@ -97,9 +104,12 @@ init_receiver(int argc, char *argv[], receiver_data_t *data)
            my_mac[0], my_mac[1], my_mac[2],
            my_mac[3], my_mac[4], my_mac[5]);
 
-    data->send_ts_ns = malloc(sizeof(uint64_t) * (size_t)data->expected_packets);
-    data->recv_ts_ns = malloc(sizeof(uint64_t) * (size_t)data->expected_packets);
-    data->is_missing = malloc(sizeof(int) * (size_t)data->expected_packets);
+
+    size_t total_samples = (size_t)data->expected_packets * (size_t)data->num_vms;
+
+    data->send_ts_ns = malloc(sizeof(uint64_t) * total_samples);
+    data->recv_ts_ns = malloc(sizeof(uint64_t) * total_samples);
+    data->is_missing = malloc(sizeof(int) * total_samples);
 
     if (!data->send_ts_ns || !data->recv_ts_ns || !data->is_missing) {
         fprintf(stderr, "malloc failed\n");
@@ -110,7 +120,7 @@ init_receiver(int argc, char *argv[], receiver_data_t *data)
         return EXIT_FAILURE;
     }
 
-    for (int i = 0; i < data->expected_packets; ++i) {
+    for (size_t i = 0; i < total_samples; ++i) {
         data->send_ts_ns[i] = 0;
         data->recv_ts_ns[i] = 0;
         data->is_missing[i] = 1;
@@ -123,8 +133,9 @@ static int
 receive_packets(receiver_data_t *data, int *out_received_count)
 {
     int packet_count = 0;
+    int expected_responses = data->expected_packets * data->num_vms;
 
-    while (packet_count < data->expected_packets) {
+    while (packet_count < expected_responses) {
         fd_set readfds;
         FD_ZERO(&readfds);
         FD_SET(STDIN_FILENO, &readfds);
@@ -165,6 +176,15 @@ receive_packets(receiver_data_t *data, int *out_received_count)
             return -1;
         }
 
+        struct timespec ts_now;
+        if (clock_gettime(CLOCK_MONOTONIC_RAW, &ts_now) != 0) {
+            perror("clock_gettime");
+            return -1;
+        }
+
+        uint64_t now_ns =
+            (uint64_t)ts_now.tv_sec * 1000000000ULL + (uint64_t)ts_now.tv_nsec;
+        
         if (socket_address.sll_pkttype == PACKET_OUTGOING) {
             continue;
         }
@@ -179,6 +199,23 @@ receive_packets(receiver_data_t *data, int *out_received_count)
             continue;
         }
 
+        // Check if source MAC from our VMs. If assigning VMs other MACs either change this code or add more prefixes.
+        static const unsigned char vm_mac_prefix[4] = {
+            0x52, 0x54, 0x11, 0x90
+        };
+        if (memcmp(eh->ether_shost, vm_mac_prefix, sizeof(vm_mac_prefix)) != 0) {
+            continue;
+        }
+
+        // Identify VM by last byte of MAC address (assuming unique last byte for each VM) - and starting with 0x00 for VM1, for array indexing later.
+        uint8_t vm_id = eh->ether_shost[5];
+        if (vm_id >= data->num_vms) {
+            fprintf(stderr,
+                    "Warning: received reply from VM ID %u, but num_vms=%d\n",
+                    vm_id, data->num_vms);
+            return EXIT_FAILURE;
+        }
+
         sv_payload_t *payload =
             (sv_payload_t *)(data->packet + sizeof(struct ether_header));
 
@@ -189,24 +226,17 @@ receive_packets(receiver_data_t *data, int *out_received_count)
             continue;
         }
 
-        struct timespec ts_now;
-        if (clock_gettime(CLOCK_MONOTONIC_RAW, &ts_now) != 0) {
-            perror("clock_gettime");
-            return -1;
-        }
-
-        uint64_t now_ns =
-            (uint64_t)ts_now.tv_sec * 1000000000ULL + (uint64_t)ts_now.tv_nsec;
-
         uint32_t frame_id = payload->frame_id;
+        size_t idx = (size_t)frame_id * (size_t)data->num_vms + (size_t)vm_id;
 
-        if (data->is_missing[frame_id] == 0) {
+        if (data->is_missing[idx] == 0) {
+            // duplicate frame
             continue;
         }
 
-        data->send_ts_ns[frame_id] = payload->sender_timestamp_ns;
-        data->recv_ts_ns[frame_id] = now_ns;
-        data->is_missing[frame_id] = 0;
+        data->send_ts_ns[idx] = payload->sender_timestamp_ns;
+        data->recv_ts_ns[idx] = now_ns;
+        data->is_missing[idx] = 0;
         packet_count++;
 
         /*
@@ -226,7 +256,7 @@ write_results_and_print_stats(const receiver_data_t *data, int received_count)
     FILE *csv_fp = fopen(data->csv_file, "w");
     if (csv_fp) {
         fprintf(csv_fp,
-                "frame_id,send_timestamp_ns,recv_timestamp_ns,latency_ns,is_missing\n");
+                "frame_id,vm_id,send_timestamp_ns,recv_timestamp_ns,latency_ns,is_missing\n");
     } else {
         fprintf(stderr, "Warning: could not open CSV file %s for writing\n",
                 data->csv_file);
@@ -246,32 +276,39 @@ write_results_and_print_stats(const receiver_data_t *data, int received_count)
     long double sum_rtt_ns = 0.0L;
     int valid_count = 0;
 
-    for (int i = 0; i < data->expected_packets; ++i) {
-        if (data->is_missing[i]) {
-            if (csv_fp) {
-                fprintf(csv_fp, "%d,NaN,NaN,NaN,1\n", i);
+    int expected_responses = data->expected_packets * data->num_vms;
+
+    for (int frame_id = 0; frame_id < data->expected_packets; ++frame_id) {
+        for (int vm_id = 0; vm_id < data->num_vms; ++vm_id) {
+            size_t idx = (size_t)frame_id * (size_t)data->num_vms + (size_t)vm_id;
+            
+            if (data->is_missing[idx]) {
+                if (csv_fp) {
+                    fprintf(csv_fp, "%d,%d,NaN,NaN,NaN,1\n", frame_id, vm_id);
+                }
+                continue;
             }
-            continue;
-        }
 
-        uint64_t rtt_ns = data->recv_ts_ns[i] - data->send_ts_ns[i];
+            uint64_t rtt_ns = data->recv_ts_ns[idx] - data->send_ts_ns[idx];
 
-        if (rtt_ns < min_rtt_ns) {
-            min_rtt_ns = rtt_ns;
-        }
-        if (rtt_ns > max_rtt_ns) {
-            max_rtt_ns = rtt_ns;
-        }
-        sum_rtt_ns += (long double)rtt_ns;
-        valid_count++;
+            if (rtt_ns < min_rtt_ns) {
+                min_rtt_ns = rtt_ns;
+            }
+            if (rtt_ns > max_rtt_ns) {
+                max_rtt_ns = rtt_ns;
+            }
+            sum_rtt_ns += (long double)rtt_ns;
+            valid_count++;
 
-        if (csv_fp) {
-            fprintf(csv_fp,
-                    "%d,%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",0\n",
-                    i,
-                    data->send_ts_ns[i],
-                    data->recv_ts_ns[i],
-                    rtt_ns);
+            if (csv_fp) {
+                fprintf(csv_fp,
+                        "%d,%d,%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",0\n",
+                        frame_id,
+                        vm_id,
+                        data->send_ts_ns[idx],
+                        data->recv_ts_ns[idx],
+                        rtt_ns);
+            }
         }
     }
 
@@ -285,7 +322,7 @@ write_results_and_print_stats(const receiver_data_t *data, int received_count)
         long double avg_rtt_us = avg_rtt_ns / 1000.0L;
 
         printf("\nRTT stats: received=%d missing=%d total=%d\n",
-               valid_count, data->expected_packets - valid_count, data->expected_packets);
+               valid_count, expected_responses - valid_count, expected_responses);
         printf("  min=%.3Lf us avg=%.3Lf us max=%.3Lf us\n",
                (long double)min_rtt_ns / 1000.0L,
                avg_rtt_us,
@@ -308,8 +345,8 @@ main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    printf("Waiting for %d hot packets (EtherType 0x%04x)...\n",
-           data.expected_packets, SV_ETHERTYPE);
+    printf("Waiting for %d frames x %d VMs = %d replies (EtherType 0x%04x)...\n",
+           data.expected_packets, data.num_vms, data.expected_packets * data.num_vms, SV_ETHERTYPE);
     printf("(Press Enter to stop early and save received packets)\n\n");
     printf("READY\n\n"); // for automation scripts to detect readiness
 
