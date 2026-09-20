@@ -1,0 +1,87 @@
+#cloud-config
+
+ssh_pwauth: false
+
+users:
+  - name: ubuntu
+    plain_text_passwd: 'ubuntu'
+    lock_passwd: false
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    shell: /bin/bash
+    ssh_authorized_keys:
+# Add your SSH public key here:
+      - [SSHKEY]
+
+packages:
+  - build-essential
+  - stress-ng
+  - rt-tests
+  - trace-cmd
+  - ethtool
+  - tcpdump
+
+write_files:
+  - path: /etc/systemd/system/irq-affinity-setup.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=ens8 lowlat network IRQ affinity to vCPU 1
+      After=network.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/local/bin/irq-affinity-setup.sh
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /usr/local/bin/irq-affinity-setup.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -e
+
+      IFACE="ens8"
+
+      # Find the virtio device backing the interface
+      VIRTIO_DEV=$(readlink -f /sys/class/net/$IFACE/device | xargs basename)
+
+      # Find corresponding IRQ numbers
+      IRQS=$(awk -v dev="$VIRTIO_DEV" '$0 ~ dev"-(input|output)" {gsub(":", "", $1); print $1}' /proc/interrupts)
+
+      # Pin ens8 netIRQ (L2 link to river) to vCPU 1 (RT CPU)
+      for IRQ in $IRQS; do
+        echo 1 > /proc/irq/$IRQ/smp_affinity_list
+      done
+
+  - path: /etc/default/grub.d/90-local.cfg
+    permissions: '0644'
+    content: |
+      # Set the default commandline
+      GRUB_CMDLINE_LINUX_DEFAULT="quiet splash nosmt isolcpus=1 nohz_full=1 rcu_nocbs=1 irqaffinity=0 kthread_cpus=0 intel_idle.max_cstate=0 idle=poll nohibernate nowatchdog tsc=reliable skew_tick=1 rcu_nocb_poll audit=0"
+
+  - path: /etc/sysctl.d/99-realtime.conf
+    permissions: '0644'
+    content: |
+      kernel.sched_rt_runtime_us = -1
+
+  - path: /etc/netplan/99-ens8-lowlat.yaml
+    permissions: '0600'
+    content: |
+      network:
+        version: 2
+        ethernets:
+          ens8:
+            dhcp4: false
+            dhcp6: false
+            accept-ra: false
+            link-local: []
+            optional: true
+
+runcmd:
+  - netplan generate
+  - netplan apply
+  - systemctl enable irq-affinity-setup.service
+  - update-grub
+  - reboot

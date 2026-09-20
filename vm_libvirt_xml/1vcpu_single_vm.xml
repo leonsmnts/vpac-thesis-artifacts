@@ -1,0 +1,110 @@
+<domain type='kvm'>
+  <name>1vcpu</name>
+
+  <memory unit='GiB'>4</memory>
+  <currentMemory unit='GiB'>4</currentMemory>
+  <memoryBacking>
+    <hugepages>
+      <page size='1' unit='GiB'/>
+    </hugepages>
+    <nosharepages/>
+    <locked/>
+  </memoryBacking>
+
+  <vcpu placement='static'>1</vcpu>
+
+  <cputune>
+    <vcpupin vcpu='0' cpuset='10'/>
+    <emulatorpin cpuset='11'/>
+  </cputune>
+
+<!-- Christina seems to have sub-NUMA clustering enabled ? -->
+  <numatune>
+    <memory mode='strict' nodeset='1'/>
+  </numatune>
+
+  <os>
+    <type arch='x86_64' machine='pc-i440fx-10.1'>hvm</type>
+    <boot dev='hd'/>
+  </os>
+
+  <features>
+    <acpi/>
+    <apic/>
+    <pmu state='off'/>
+    <ps2 state='off'/>
+  </features>
+
+  <cpu mode='host-passthrough' check='none' migratable='off'>
+    <topology sockets='1' dies='1' clusters='1' cores='1' threads='1'/>
+  </cpu>
+
+  <clock offset='utc'>
+    <timer name='tsc' present='yes'/>
+    <timer name='hpet' present='no'/>
+  </clock>
+
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+
+  <devices>
+
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2' cache='none' io='native'/>
+<!-- Replace with the absolute path to the VM image on the host. -->
+      <source file='/path/to/vms/1vcpu.qcow2'/>
+      <target dev='vda' bus='virtio'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x05' function='0x0'/>
+    </disk>
+
+<!--
+  Cloud-init NoCloud seed image for initial provisioning.
+
+  Create with:
+    $ cloud-localds user-data.img user-data
+
+  Uncomment this block for the initial boot and adjust the source path.
+
+  <disk type='file' device='cdrom'>
+    <driver name='qemu' type='raw'/>
+    <source file='/path/to/cloud-init/user-data.img'/>
+    <target dev='hda' bus='ide'/>
+    <readonly/>
+  </disk>
+-->
+
+    <controller type='usb' index='0' model='none'/>
+    <controller type='pci' index='0' model='pci-root'/>
+
+<!-- Probably do not need two interfaces here, as also seen in multi-vm setups -->
+<!--
+  MAC addresses are specific chair VM configurables, more info in:
+    - https://github.com/TUM-DSE/doctor-cluster-config/blob/master/modules/doctor-VMs.nix
+-->
+    <interface type='bridge'>
+      <mac address='96:83:aa:a0:06:34'/>
+      <source bridge='doctor-bridge'/>
+      <model type='virtio'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x0'/>
+    </interface>
+    <interface type='bridge'>
+      <mac address='96:83:aa:a2:06:34'/>
+      <source bridge='doctor-bridge'/>
+      <model type='virtio'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/>
+    </interface>
+
+    <interface type='bridge'>
+      <mac address='52:54:00:11:22:33'/>
+      <source bridge='lowlat-bridge'/>
+      <target dev='lltap0'/>
+      <model type='virtio'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x08' function='0x0'/>
+    </interface>
+
+    <audio id='1' type='none'/>
+    <memballoon model='none'/>
+
+  </devices>
+</domain>

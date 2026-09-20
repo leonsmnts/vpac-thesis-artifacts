@@ -1,0 +1,39 @@
+<network>
+  <name>default</name>
+
+  <forward mode='nat'>
+    <nat>
+      <port start='1024' end='65535'/>
+    </nat>
+  </forward>
+
+  <bridge name='virbr0' stp='on' delay='0'/>
+
+  <mac address='52:54:00:85:79:2b'/>
+
+  <ip address='192.168.122.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.122.2' end='192.168.122.99'/>
+      
+      <host mac='52:54:00:90:00:00' name='1vcpu0' ip='192.168.122.100'/>
+      <host mac='52:54:00:90:00:01' name='1vcpu1' ip='192.168.122.101'/>
+      <host mac='52:54:00:90:00:02' name='1vcpu2' ip='192.168.122.102'/>
+      <host mac='52:54:00:90:00:03' name='1vcpu3' ip='192.168.122.103'/>
+      <host mac='52:54:00:90:00:04' name='1vcpu4' ip='192.168.122.104'/>
+      <host mac='52:54:00:90:00:05' name='1vcpu5' ip='192.168.122.105'/>
+      <host mac='52:54:00:90:00:06' name='1vcpu6' ip='192.168.122.106'/>
+      <host mac='52:54:00:90:00:07' name='1vcpu7' ip='192.168.122.107'/>
+      <host mac='52:54:00:90:00:08' name='1vcpu8' ip='192.168.122.108'/>
+
+      <host mac='52:54:00:90:10:00' name='2vcpu0' ip='192.168.122.200'/>
+      <host mac='52:54:00:90:10:01' name='2vcpu1' ip='192.168.122.201'/>
+      <host mac='52:54:00:90:10:02' name='2vcpu2' ip='192.168.122.202'/>
+      <host mac='52:54:00:90:10:03' name='2vcpu3' ip='192.168.122.203'/>
+      <host mac='52:54:00:90:10:04' name='2vcpu4' ip='192.168.122.204'/>
+      <host mac='52:54:00:90:10:05' name='2vcpu5' ip='192.168.122.205'/>
+      <host mac='52:54:00:90:10:06' name='2vcpu6' ip='192.168.122.206'/>
+      <host mac='52:54:00:90:10:07' name='2vcpu7' ip='192.168.122.207'/>
+      <host mac='52:54:00:90:10:08' name='2vcpu8' ip='192.168.122.208'/>
+    </dhcp>
+  </ip>
+</network>

@@ -1,0 +1,77 @@
+#cloud-config
+
+ssh_pwauth: false
+
+users:
+  - name: ubuntu
+    plain_text_passwd: 'ubuntu'
+    lock_passwd: false
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    shell: /bin/bash
+    ssh_authorized_keys:
+# Add your SSH public key here:
+      - [SSHKEY]
+
+packages:
+  - build-essential
+  - stress-ng
+  - rt-tests
+  - trace-cmd
+  - ethtool
+  - tcpdump
+
+write_files:
+  - path: /etc/systemd/system/cpu0-fairserver0-setup.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=ens8 lowlat network IRQ affinity to vCPU 1
+      After=network.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/local/bin/cpu0-fairserver0-setup.sh
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /usr/local/bin/cpu0-fairserver0-setup.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -e
+
+      # Set vCPU0 runtime to 0 to disable the fair-server and RT throttling
+      echo 0 > /sys/kernel/debug/sched/fair_server/cpu0/runtime
+
+  - path: /etc/default/grub.d/90-local.cfg
+    permissions: '0644'
+    content: |
+      # Set the default commandline
+      GRUB_CMDLINE_LINUX_DEFAULT="quiet splash nosmt intel_idle.max_cstate=0 idle=poll nohibernate nowatchdog tsc=reliable audit=0"
+
+  - path: /etc/sysctl.d/99-realtime.conf
+    permissions: '0644'
+    content: |
+      kernel.sched_rt_runtime_us = -1
+
+  - path: /etc/netplan/99-ens8-lowlat.yaml
+    permissions: '0600'
+    content: |
+      network:
+        version: 2
+        ethernets:
+          ens8:
+            dhcp4: false
+            dhcp6: false
+            accept-ra: false
+            link-local: []
+            optional: true
+
+runcmd:
+  - netplan generate
+  - netplan apply
+  - systemctl enable cpu0-fairserver0-setup.service
+  - update-grub
+  - reboot
