@@ -9,6 +9,16 @@ associated Bachelor's Thesis as the primary reference:
 
 > Leon Simoniants, *Scheduling for Deterministic Virtualization of Virtualized Protection and Control Workloads on COTS Hardware*, Bachelor's Thesis, Technical University of Munich (TUM), 2026.
 
+```bibtex
+@thesis{simoniants2026vpac,
+  author      = {Leon Simoniants},
+  title       = {Scheduling for Deterministic Virtualization of Virtualized Protection and Control Workloads on COTS Hardware},
+  type        = {Bachelor's Thesis},
+  institution = {Technical University of Munich},
+  year        = {2026}
+}
+```
+
 When referring specifically to the source code, configuration files, or other
 artifacts contained in this repository, the repository itself may additionally
 be cited.
