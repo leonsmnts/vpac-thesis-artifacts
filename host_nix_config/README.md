@@ -14,16 +14,16 @@ Use the `River` and `Christina` configurations included in this artifact reposit
 
 ### River
 
-- `river.nix`
+- [`river.nix`](river.nix)
 
 ### Christina
 
-- `christina_single_vm.nix`
+- [`christina_single_vm.nix`](christina_single_vm.nix)
   - Configuration used in the single-VM experiments
-- `christina_multi_vm.nix`
+- [`christina_multi_vm.nix`](christina_multi_vm.nix)
   - Configuration used in the multi-VM experiments
   - Differences to single-VM:
     - CPU pool sizes for housekeeping and RT
     - amount of 1 GiB hugepages.
-- `christina_single_vm_preempt_rt.nix`
+- [`christina_single_vm_preempt_rt.nix`](christina_single_vm_preempt_rt.nix)
   - Unused configuration, equivalent to single VM, however enables a `PREEMPT_RT` kernel. Potentially useful for further investigation.
