@@ -14,7 +14,7 @@ associated Bachelor's Thesis as the primary reference:
   author      = {Leon Simoniants},
   title       = {Scheduling for Deterministic Virtualization of Virtualized Protection and Control Workloads on COTS Hardware},
   type        = {Bachelor's Thesis},
-  institution = {Technical University of Munich},
+  institution = {Technical University of Munich (TUM)},
   year        = {2026}
 }
 ```
